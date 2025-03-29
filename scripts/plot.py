@@ -70,6 +70,21 @@ def add_annotations(ax):
                     verticalalignment='top', horizontalalignment='right')
 
 
+def add_simple_annotations(ax):
+    """
+    Add vertical lines and dates only.
+
+    Parameters:
+        ax (matplotlib.Axes): The plot axis to annotate.
+    """
+    for date_str, label, wetness in ANNOTATIONS:
+        date = pd.to_datetime(date_str)
+        ax.axvline(x=date, color='black', linestyle='--', linewidth=2)
+        ax.text(date, ax.get_ylim()[0] * 0.25 + ax.get_ylim()[1] * 0.75, label,
+                rotation=90, color='black', fontsize=8, fontweight='bold',
+                verticalalignment='top', horizontalalignment='right')
+
+
 def plot_variable(cleaned_dir, var):
     df, weekly, trend, ste = read_variable_series(cleaned_dir, var)
 
@@ -152,18 +167,22 @@ def plot_temperature_and_dewpoint(temp_weekly, dew_weekly):
 def plot_daily_weather(temp_df, dew_df, humidity_df):
     fig, axs = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
 
-    axs[2].plot(temp_df.index, temp_df['avg'], color=COLORS['temperature'])
+    axs[2].scatter(temp_df.index, temp_df['avg'], color=COLORS['temperature'], marker='x', alpha=.3)
     axs[2].set_ylabel("Température (°C)")
     # axs[2].set_title("Température quotidienne")
 
-    axs[1].plot(dew_df.index, dew_df['avg'], color=COLORS['dew_point'])
+    axs[1].scatter(dew_df.index, dew_df['avg'], color=COLORS['dew_point'], marker='x', alpha=.3)
     axs[1].set_ylabel("Point de rosée (°C)")
     # axs[1].set_title("Point de rosée quotidien")
 
-    axs[0].plot(humidity_df.index, humidity_df['avg'], color=COLORS['humidity'])
+    axs[0].scatter(humidity_df.index, humidity_df['avg'], color=COLORS['humidity'], marker='x', alpha=.3)
     axs[0].set_ylabel("Humidité (%)")
     axs[0].set_title("Statistiques quotidiennes - moyennes sur la journée")
     axs[2].set_xlabel("Date")
+
+    add_simple_annotations(axs[0])
+    add_simple_annotations(axs[1])
+    add_simple_annotations(axs[2])
 
     plt.tight_layout()
     plt.savefig("data/png/daily_weather_combined.png")
