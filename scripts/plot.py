@@ -58,14 +58,14 @@ def add_annotations(ax):
     for date_str, label, wetness in ANNOTATIONS:
         date = pd.to_datetime(date_str)
         ax.axvline(x=date, color='black', linestyle='--', linewidth=2)
-        ax.text(date, ax.get_ylim()[1] * 0.65, label,
+        ax.text(date, ax.get_ylim()[0] * 0.35 + ax.get_ylim()[1] * 0.65, label,
                 rotation=90, color='black', fontsize=12, fontweight='bold',
                 verticalalignment='top', horizontalalignment='right')
-        ax.text(date + dt.timedelta(days=10), ax.get_ylim()[1] * 0.55, wetness,
+        ax.text(date + dt.timedelta(days=10), ax.get_ylim()[0] * 0.45 + ax.get_ylim()[1] * 0.55, wetness,
                 rotation=90, color='brown', fontsize=12, fontweight='bold',
                 verticalalignment='top', horizontalalignment='right')
         if '17/10/2024' in label:
-            ax.text(date + dt.timedelta(days=20), ax.get_ylim()[1] * 0.60, '(constatée plombier)',
+            ax.text(date + dt.timedelta(days=20), ax.get_ylim()[0] * 0.40 + ax.get_ylim()[1] * 0.60, '(constatée plombier)',
                     rotation=90, color='brown', fontsize=12, fontweight='bold',
                     verticalalignment='top', horizontalalignment='right')
 
@@ -74,13 +74,15 @@ def plot_variable(cleaned_dir, var):
     df, weekly, trend, ste = read_variable_series(cleaned_dir, var)
 
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.fill_between(df.index, df['min'], df['max'], color='white', alpha=0.3)
+    # ax.fill_between(df.index, df['min'], df['max'], color='white', alpha=0.3)
     ax.plot(weekly.index, trend, color=COLORS[var], alpha=0.5)
     ax.fill_between(weekly.index, trend - ste, trend + ste, color=COLORS[var], alpha=0.05)
 
     ax.set_ylabel(f"{TITLES[var]} (°C)" if var != 'humidity' else "Humidité (%)")
     ax.set_xlabel("Date")
     ax.set_title(f"{TITLES[var]} à Paris de Janvier 2024 à fin mars 2025")
+
+    ax.set_ylim(df['min'].resample('W').mean().min(), df['max'].resample('W').mean().max())
 
     add_annotations(ax)
     plt.tight_layout()
@@ -147,6 +149,26 @@ def plot_temperature_and_dewpoint(temp_weekly, dew_weekly):
     plt.savefig("data/png/temperature_vs_dewpoint.png")
 
 
+def plot_daily_weather(temp_df, dew_df, humidity_df):
+    fig, axs = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+
+    axs[2].plot(temp_df.index, temp_df['avg'], color=COLORS['temperature'])
+    axs[2].set_ylabel("Température (°C)")
+    # axs[2].set_title("Température quotidienne")
+
+    axs[1].plot(dew_df.index, dew_df['avg'], color=COLORS['dew_point'])
+    axs[1].set_ylabel("Point de rosée (°C)")
+    # axs[1].set_title("Point de rosée quotidien")
+
+    axs[0].plot(humidity_df.index, humidity_df['avg'], color=COLORS['humidity'])
+    axs[0].set_ylabel("Humidité (%)")
+    axs[0].set_title("Statistiques quotidiennes - moyennes sur la journée")
+    axs[2].set_xlabel("Date")
+
+    plt.tight_layout()
+    plt.savefig("data/png/daily_weather_combined.png")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cleaned-dir", required=True, help="Path to cleaned CSV files")
@@ -163,3 +185,4 @@ if __name__ == "__main__":
     plot_condensation_probability(temp_df, dew_df)
     plot_excess_dew_vs_tmin(temp_df, dew_df)
     plot_temperature_and_dewpoint(temp_weekly, dew_weekly)
+    plot_daily_weather(temp_df, dew_df, humidity_df)
