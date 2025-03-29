@@ -6,6 +6,7 @@ import datetime as dt
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
+
 ANNOTATIONS = [
     ('2024-07-05', 'Visite plombier   - 05/07/2024', 'Colonne humide'),
     ('2024-10-17', 'Visite plombier   - 17/10/2024', 'Colonne humide'),
@@ -17,13 +18,15 @@ COLORS = {
     'humidity': 'blue',
     'temperature': 'red',
     'dew_point': 'purple',
-    'condensation': 'green'
+    'condensation': 'green',
+    'excess': 'orange'
 }
 TITLES = {
     'humidity': 'Humidité',
     'temperature': 'Température',
     'dew_point': 'Point de Rosée'
 }
+
 
 def read_variable_series(cleaned_dir, var):
     """
@@ -43,6 +46,7 @@ def read_variable_series(cleaned_dir, var):
     trend = lowess(weekly['avg'], weekly.index.values.astype(float), frac=0.1, return_sorted=False)
     ste = (weekly['avg'] - trend).std()
     return df, weekly, trend, ste
+
 
 def add_annotations(ax):
     """
@@ -64,6 +68,7 @@ def add_annotations(ax):
             ax.text(date + dt.timedelta(days=20), ax.get_ylim()[1] * 0.60, '(constatée plombier)',
                     rotation=90, color='brown', fontsize=12, fontweight='bold',
                     verticalalignment='top', horizontalalignment='right')
+
 
 def plot_variable(cleaned_dir, var):
     """
@@ -88,24 +93,20 @@ def plot_variable(cleaned_dir, var):
     plt.tight_layout()
     plt.savefig(f"data/png/{var}.png")
 
-def plot_condensation_probability(temp_weekly, dew_weekly):
-    """
-    Compute and plot the probability of condensation using a logit model.
 
-    Parameters:
-        temp_weekly (pd.DataFrame): Weekly min temperatures.
-        dew_weekly (pd.DataFrame): Weekly max dew points.
-    """
-    merged = pd.DataFrame(index=temp_weekly.index)
-    merged['delta'] = temp_weekly['min'] - dew_weekly['max']
+def plot_condensation_probability(temp_df, dew_df):
+    merged = pd.DataFrame(index=temp_df.index)
+    merged['delta'] = temp_df['min'] - dew_df['max']
 
     alpha = 1
     merged['P_condensation'] = 1 / (1 + np.exp(alpha * merged['delta']))
-    smoothed = lowess(merged['P_condensation'], merged.index.values.astype(float), frac=0.1, return_sorted=False)
+
+    weekly = merged['P_condensation'].resample('W').mean()
+    smoothed = lowess(weekly, weekly.index.values.astype(float), frac=0.1, return_sorted=False)
 
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.plot(merged.index, smoothed, color=COLORS['condensation'])
-    ax.fill_between(merged.index, smoothed, color=COLORS['condensation'], alpha=0.1)
+    ax.plot(weekly.index, smoothed, color=COLORS['condensation'])
+    ax.fill_between(weekly.index, smoothed, color=COLORS['condensation'], alpha=0.1)
     ax.set_ylabel("Probabilité de condensation")
     ax.set_xlabel("Date")
     ax.set_ylim(0, 1.05)
@@ -113,6 +114,23 @@ def plot_condensation_probability(temp_weekly, dew_weekly):
     add_annotations(ax)
     plt.tight_layout()
     plt.savefig("data/png/condensation_probability.png")
+
+
+def plot_excess_dew_vs_tmin(temp_df, dew_df):
+    excess = np.maximum(0, dew_df['max'] - temp_df['min'])
+    weekly = excess.resample('W').mean()
+    smoothed = lowess(weekly, weekly.index.values.astype(float), frac=0.1, return_sorted=False)
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(weekly.index, smoothed, color=COLORS['excess'])
+    ax.fill_between(weekly.index, smoothed, color=COLORS['excess'], alpha=0.1)
+    ax.set_ylabel("Excès de rosée (°C)")
+    ax.set_xlabel("Date")
+    ax.set_title("Excès de rosée\nParis, Janvier 2024 à Mars 2025")
+    add_annotations(ax)
+    plt.tight_layout()
+    plt.savefig("data/png/excess_dew_vs_tmin.png")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -127,4 +145,5 @@ if __name__ == "__main__":
     for var in PLOT_ORDER:
         plot_variable(cleaned, var)
 
-    plot_condensation_probability(temp_weekly, dew_weekly)
+    plot_condensation_probability(temp_df, dew_df)
+    plot_excess_dew_vs_tmin(temp_df, dew_df)
