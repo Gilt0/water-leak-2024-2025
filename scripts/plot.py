@@ -71,13 +71,6 @@ def add_annotations(ax):
 
 
 def plot_variable(cleaned_dir, var):
-    """
-    Plot a smoothed trend and variation of a weather variable.
-
-    Parameters:
-        cleaned_dir (Path): Path to cleaned CSV directory.
-        var (str): Variable name to plot.
-    """
     df, weekly, trend, ste = read_variable_series(cleaned_dir, var)
 
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -132,6 +125,28 @@ def plot_excess_dew_vs_tmin(temp_df, dew_df):
     plt.savefig("data/png/excess_dew_vs_tmin.png")
 
 
+def plot_temperature_and_dewpoint(temp_weekly, dew_weekly):
+    temp_trend = lowess(temp_weekly['avg'], temp_weekly.index.values.astype(float), frac=0.1, return_sorted=False)
+    dew_trend = lowess(dew_weekly['avg'], dew_weekly.index.values.astype(float), frac=0.1, return_sorted=False)
+    temp_ste = (temp_weekly['avg'] - temp_trend).std()
+    dew_ste = (dew_weekly['avg'] - dew_trend).std()
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(temp_weekly.index, temp_trend, label="Température moyenne", color=COLORS['temperature'])
+    ax.fill_between(temp_weekly.index, temp_trend - temp_ste, temp_trend + temp_ste, color=COLORS['temperature'], alpha=0.05)
+
+    ax.plot(dew_weekly.index, dew_trend, label="Point de rosée moyen", color=COLORS['dew_point'])
+    ax.fill_between(dew_weekly.index, dew_trend - dew_ste, dew_trend + dew_ste, color=COLORS['dew_point'], alpha=0.05)
+
+    ax.set_ylabel("Température (°C)")
+    ax.set_xlabel("Date")
+    ax.set_title("Température moyenne vs Point de rosée à Paris (Jan 2024 – Mar 2025)")
+    ax.legend()
+    add_annotations(ax)
+    plt.tight_layout()
+    plt.savefig("data/png/temperature_vs_dewpoint.png")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cleaned-dir", required=True, help="Path to cleaned CSV files")
@@ -147,3 +162,4 @@ if __name__ == "__main__":
 
     plot_condensation_probability(temp_df, dew_df)
     plot_excess_dew_vs_tmin(temp_df, dew_df)
+    plot_temperature_and_dewpoint(temp_weekly, dew_weekly)
