@@ -4,118 +4,67 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-# Set up argument parser
-parser = argparse.ArgumentParser(description="Extract humidity data from weather file")
-parser.add_argument("--rawdata", help="Input file name in format YYYYMM.txt (absolute or relative path)")
-parser.add_argument("--outdir", help="Output directory to save the resulting CSV file")
-args = parser.parse_args()
+# Constants for identifying sections (based on order of appearance in file)
+SECTION_INDEX = {
+    "temperature": 0,
+    "dew_point": 1,
+    "humidity": 2
+}
 
-# Resolve paths
-rawdata_path = Path(args.rawdata).resolve()
-outdir_path = Path(args.outdir).resolve()
-outdir_path.mkdir(parents=True, exist_ok=True)  # Create output directory if it doesn't exist
-
-# Extract year and month from filename
-YYYYMM = rawdata_path.name.replace('.txt', '')
-year = YYYYMM[:4]
-month = YYYYMM[4:]
-
-# Read the file
-with open(rawdata_path, 'r', encoding='utf-8') as f:
-    data = f.read()
-
-# Extract the section for Humidity
-humidity_section = re.findall(r"Max\s+Avg\s+Min\n((?:-?\d+\t-?[\d.]+\t-?\d+\n?)+)", data)
-
-if humidity_section:
-    lines = humidity_section[2].strip().split("\n")  # The 3rd Max/Avg/Min block is for humidity
-    humidity_data = {}
-
-    for i, line in enumerate(lines):
-        day = i + 1
+def extract_section_data(section_lines, year, month):
+    """Extracts structured data from a list of tab-separated lines."""
+    data = {}
+    for i, line in enumerate(section_lines):
         parts = line.strip().split("\t")
         if len(parts) == 3:
-            max_h, avg_h, min_h = parts
-            humidity_data[i] = {
-                'date': f"{year}-{month}-{day:02d}",
-                'max': int(max_h),
-                'avg': float(avg_h),
-                'min': int(min_h)
+            max_val, avg_val, min_val = parts
+            data[i] = {
+                'date': f"{year}-{month}-{i+1:02d}",
+                'max': int(max_val),
+                'avg': float(avg_val),
+                'min': int(min_val)
             }
-
-    # Convert to DataFrame
-    df = pd.DataFrame.from_dict(humidity_data, orient='index')
-    # print(df)
-
-    # Save to CSV in output directory
-    output_filename = outdir_path / f"humidity_{year}_{month}.csv"
-    df.to_csv(output_filename, index=None)
-    print(f"Saved to {output_filename}")
-
-else:
-    print("Humidity section not found in the data.")
+    return pd.DataFrame.from_dict(data, orient='index')
 
 
-
-# Extract the section for Temperature
-temperature_section = re.findall(r"Max\s+Avg\s+Min\n((?:-?\d+\t-?[\d.]+\t-?\d+\n?)+)", data)
-
-if temperature_section:
-    lines = temperature_section[0].strip().split("\n")  # The 3rd Max/Avg/Min block is for temperature
-    temperature_data = {}
-
-    for i, line in enumerate(lines):
-        day = i + 1
-        parts = line.strip().split("\t")
-        if len(parts) == 3:
-            max_h, avg_h, min_h = parts
-            temperature_data[i] = {
-                'date': f"{year}-{month}-{day:02d}",
-                'max': int(max_h),
-                'avg': float(avg_h),
-                'min': int(min_h)
-            }
-
-    # Convert to DataFrame
-    df = pd.DataFrame.from_dict(temperature_data, orient='index')
-    # print(df)
-
-    # Save to CSV in output directory
-    output_filename = outdir_path / f"temperature_{year}_{month}.csv"
-    df.to_csv(output_filename, index=None)
-    print(f"Saved to {output_filename}")
-
-else:
-    print("temperature section not found in the data.")
+def process_variable(data, variable_name, index, year, month, outdir_path):
+    """Processes a specific weather variable and saves to CSV if found."""
+    matches = re.findall(r"Max\s+Avg\s+Min\n((?:-?\d+\t-?[\d.]+\t-?\d+\n?)+)", data)
+    
+    if len(matches) > index:
+        section = matches[index]
+        lines = section.strip().split("\n")
+        df = extract_section_data(lines, year, month)
+        output_filename = outdir_path / f"{variable_name}_{year}_{month}.csv"
+        df.to_csv(output_filename, index=False)
+        print(f"[✓] {variable_name.capitalize()} data saved to {output_filename}")
+    else:
+        print(f"[!] {variable_name.capitalize()} section not found.")
 
 
-# Extract the section for Dew Point
-dew_point_section = re.findall(r"Max\s+Avg\s+Min\n((?:-?\d+\t-?[\d.]+\t-?\d+\n?)+)", data)
+def main(rawdata_path: Path, outdir_path: Path):
+    # Read file content
+    with open(rawdata_path, 'r', encoding='utf-8') as f:
+        data = f.read()
 
-if dew_point_section:
-    lines = dew_point_section[1].strip().split("\n")  # The 3rd Max/Avg/Min block is for dew_point
-    dew_point_data = {}
+    # Extract year and month from filename
+    YYYYMM = rawdata_path.stem  # removes ".txt"
+    year, month = YYYYMM[:4], YYYYMM[4:]
 
-    for i, line in enumerate(lines):
-        day = i + 1
-        parts = line.strip().split("\t")
-        if len(parts) == 3:
-            max_h, avg_h, min_h = parts
-            dew_point_data[i] = {
-                'date': f"{year}-{month}-{day:02d}",
-                'max': int(max_h),
-                'avg': float(avg_h),
-                'min': int(min_h)
-            }
+    # Process each variable
+    for variable, index in SECTION_INDEX.items():
+        process_variable(data, variable, index, year, month, outdir_path)
 
-    # Convert to DataFrame
-    df = pd.DataFrame.from_dict(dew_point_data, orient='index')
-    # print(df)
 
-    # Save to CSV in output directory
-    output_filename = outdir_path / f"dew_point_{year}_{month}.csv"
-    df.to_csv(output_filename, index=None)
-    print(f"Saved to {output_filename}")
+if __name__ == "__main__":
+    # Parse arguments
+    parser = argparse.ArgumentParser(description="Extract weather data (temperature, humidity, dew point) from a raw text file.")
+    parser.add_argument("--rawdata", required=True, help="Path to the raw data file (format: YYYYMM.txt)")
+    parser.add_argument("--outdir", required=True, help="Directory to save extracted CSV files")
+    args = parser.parse_args()
 
-else:
-    print("dew_point section not found in the data.")
+    rawdata_path = Path(args.rawdata).resolve()
+    outdir_path = Path(args.outdir).resolve()
+    outdir_path.mkdir(parents=True, exist_ok=True)
+
+    main(rawdata_path, outdir_path)
