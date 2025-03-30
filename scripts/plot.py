@@ -95,7 +95,7 @@ def plot_variable(cleaned_dir, var):
 
     ax.set_ylabel(f"{TITLES[var]} (°C)" if var != 'humidity' else "Humidité (%)")
     ax.set_xlabel("Date")
-    ax.set_title(f"{TITLES[var]} à Paris de Janvier 2024 à fin mars 2025")
+    ax.set_title(f"{TITLES[var]} à Paris de Janvier 2024 à fin Mars 2025")
 
     ax.set_ylim(df['min'].resample('W').mean().min(), df['max'].resample('W').mean().max())
 
@@ -120,7 +120,7 @@ def plot_condensation_probability(temp_df, dew_df):
     ax.set_ylabel("Probabilité de condensation")
     ax.set_xlabel("Date")
     ax.set_ylim(0, 1.05)
-    ax.set_title("Probabilité de condensation (logit α=1)à Paris de Janvier 2024 à fin mars 2025")
+    ax.set_title("Probabilité de condensation (logit α=1)à Paris de Janvier 2024 à fin Mars 2025")
     add_annotations(ax)
     plt.tight_layout()
     plt.savefig("data/png/condensation_probability.png")
@@ -136,7 +136,7 @@ def plot_excess_dew_vs_tmin(temp_df, dew_df):
     ax.fill_between(weekly.index, smoothed, color=COLORS['excess'], alpha=0.1)
     ax.set_ylabel("Excès de rosée (°C)")
     ax.set_xlabel("Date")
-    ax.set_title("Excès de roséeà Paris de Janvier 2024 à fin mars 2025")
+    ax.set_title("Excès de rosée à Paris de Janvier 2024 à fin Mars 2025")
     add_annotations(ax)
     plt.tight_layout()
     plt.savefig("data/png/excess_dew_vs_tmin.png")
@@ -188,6 +188,26 @@ def plot_daily_weather(temp_df, dew_df, humidity_df):
     plt.savefig("data/png/daily_weather_combined.png")
 
 
+def plot_capped_excess_dew_vs_tmin(temp_df, dew_df):
+    capped_temp = temp_df['min'].copy()
+    capped_temp[capped_temp < 19] = 19
+    print(temp_df['min'].values)
+    print(capped_temp.values)
+    excess = np.maximum(0, dew_df['min'] - capped_temp)
+    weekly = excess.resample('W').mean()
+    smoothed = lowess(weekly, weekly.index.values.astype(float), frac=0.1, return_sorted=False)
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(weekly.index, smoothed, color=COLORS['excess'])
+    ax.fill_between(weekly.index, smoothed, color=COLORS['excess'], alpha=0.1)
+    ax.set_ylabel("Excès de rosée (°C)")
+    ax.set_xlabel("Date")
+    ax.set_title("Excès de rosée à Paris de Janvier 2024 à fin Mars 2025")
+    add_annotations(ax)
+    plt.tight_layout()
+    plt.savefig("data/png/excess_dew_vs_tmin_capped.png")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cleaned-dir", required=True, help="Path to cleaned CSV files")
@@ -205,3 +225,4 @@ if __name__ == "__main__":
     plot_excess_dew_vs_tmin(temp_df, dew_df)
     plot_temperature_and_dewpoint(temp_weekly, dew_weekly)
     plot_daily_weather(temp_df, dew_df, humidity_df)
+    plot_capped_excess_dew_vs_tmin(temp_df, dew_df)
